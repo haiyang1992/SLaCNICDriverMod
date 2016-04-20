@@ -5,8 +5,9 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Haiyang Han");
 MODULE_DESCRIPTION("A module that intecepts a socket() system call and inits the laser in e1000 NIC");
+MODULE_VERSION("0.1");
 
-statis int __init sock_intercept_init(void)
+static int __init sock_intercept_init(void)
 {
     printk(KERN_INFO "socket call intercept init\n");
     return 0;
