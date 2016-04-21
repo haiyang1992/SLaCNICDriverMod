@@ -6,8 +6,8 @@
 #include <linux/proc_fs.h>
 #include <asm/uaccess.h>
 #include <linux/netdevice.h>
-#include <sys/socket.h>
-#include <sys/types.h>
+//#include <sys/socket.h>
+//#include <sys/types.h>
 #include "e1000.h"
 
 MODULE_LICENSE("GPL");
@@ -15,7 +15,7 @@ MODULE_AUTHOR("Haiyang Han");
 MODULE_DESCRIPTION("A module that intecepts a socket() system call and inits the laser in e1000 NIC");
 MODULE_VERSION("0.1");
 
-unsigned long *sys_call_table
+unsigned long *sys_call_table;
 
 extern void e1000_laser_init(struct net_device *netdev);
 extern void e1000_laser_sock_close(struct net_device *netdev);
@@ -37,7 +37,7 @@ asmlinkage int (*e1000_socket) (int domain, int type, int protocol)
     }
     
     return original_socket(domain, type, protocol);
-}
+};
 
 asmlinkage long (*original_close) (unsigned int fd);
 asmlinkage long (*e1000_close) (unsigned int fd)
@@ -66,7 +66,7 @@ asmlinkage long (*e1000_close) (unsigned int fd)
     
         return original_close(fd);
      }
-}
+};
 
 static int __init sock_intercept_init(void)
 {
