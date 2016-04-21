@@ -19,12 +19,13 @@ unsigned long *sys_call_table;
 
 extern void e1000_laser_init(struct net_device *netdev);
 extern void e1000_laser_sock_close(struct net_device *netdev);
+extern int getsockname(int sockfd, struct sockaddr *addr, int *addrlen);
 
 asmlinkage int (*original_socket) (int domain, int type, int protocol);
-asmlinkage int (*e1000_socket) (int domain, int type, int protocol)
+asmlinkage int e1000_socket(int domain, int type, int protocol)
 {
-    printk(KERN_INFO "socket() intercepted\nNow turning on laser\n"); 
     struct net_device *dev;
+    printk(KERN_INFO "socket() intercepted\nNow turning on laser\n"); 
     dev = first_net_device(&init_net);
     // assume current dev is eth0, using e1000
     printk(KERN_INFO"@ [%s]\n", dev->name);
@@ -40,11 +41,12 @@ asmlinkage int (*e1000_socket) (int domain, int type, int protocol)
 };
 
 asmlinkage long (*original_close) (unsigned int fd);
-asmlinkage long (*e1000_close) (unsigned int fd)
+asmlinkage long e1000_close(unsigned int fd)
 { 
-    printk(KERN_INFO "close() intercepted\nNow turning off laser\n");
     struct sockaddr addr;
     int addrlen = sizeof(addr);
+    printk(KERN_INFO "close() intercepted\nNow turning off laser\n");
+    //if (getsockname(fd, &addr, &addrlen) == -1)
     if (getsockname(fd, &addr, &addrlen) == -1)
     {
         printk(KERN_INFO"not a socket close\n");
