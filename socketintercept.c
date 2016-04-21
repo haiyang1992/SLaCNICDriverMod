@@ -70,7 +70,7 @@ asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vl
      /*}*/
 /*};*/
 
-static int __init sock_intercept_init(void)
+static int __init socketintercept_init(void)
 {
     printk(KERN_INFO "socket call intercept init\n");
     /* obtain sys_call_table from hardcoded value found in System.map */
@@ -82,7 +82,7 @@ static int __init sock_intercept_init(void)
     return 0;
 }
 
-static void __exit sock_intercept_exit(void)
+static void __exit socketintercept_exit(void)
 {
     /* restore original socket() in sys_call_table */
     xchg(&sys_call_table[__NR_sendmsg], original_sendmsg);
@@ -91,5 +91,5 @@ static void __exit sock_intercept_exit(void)
     printk(KERN_INFO "socket call intercept exiting\n");
 }
 
-module_init(sock_intercept_init);
-module_exit(sock_intercept_exit);
+module_init(socketintercept_init);
+module_exit(socketintercept_exit);
