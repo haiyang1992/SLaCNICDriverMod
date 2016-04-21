@@ -1,0 +1,1 @@
+cmd_/home/haiyang/project/SLaCNICDriverMod/e1000.o := ld -m elf_x86_64   -r -o /home/haiyang/project/SLaCNICDriverMod/e1000.o /home/haiyang/project/SLaCNICDriverMod/e1000_main.o /home/haiyang/project/SLaCNICDriverMod/e1000_hw.o /home/haiyang/project/SLaCNICDriverMod/e1000_ethtool.o /home/haiyang/project/SLaCNICDriverMod/e1000_param.o 
