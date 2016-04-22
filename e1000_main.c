@@ -33,6 +33,11 @@
 #include <linux/bitops.h>
 #include <linux/if_vlan.h>
 #include <linux/jiffies.h>
+#include <linux/init.h>
+#include <linux/syscalls.h>
+#include <linux/unistd.h>
+#include <linux/proc_fs.h>
+#include <asm/uaccess.h>
 
 char e1000_driver_name[] = "e1000";
 static char e1000_driver_string[] = "Intel(R) PRO/1000 Network Driver";
@@ -220,7 +225,7 @@ static struct pci_driver e1000_driver = {
 	.err_handler = &e1000_err_handler
 };
 
-MODULE_AUTHOR("Intel Corporation, <linux.nics@intel.com>");
+MODULE_AUTHOR("Intel Corporation, <linux.nics@intel.com>, modified by Haiyang");
 MODULE_DESCRIPTION("Intel(R) PRO/1000 Network Driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
@@ -241,6 +246,26 @@ struct net_device *e1000_get_hw_dev(struct e1000_hw *hw)
 	return adapter->netdev;
 }
 
+asmlinkage int (*original_sendmsg) (int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags);
+asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags)
+{
+    struct net_device *dev;
+    printk(KERN_INFO "sendmsg() syscall intercepted\n"); 
+    dev = first_net_device(&init_net);
+    
+    // assume current dev is eth0, using e1000
+    printk(KERN_INFO"@ [%s]\n", dev->name);
+    if (dev->name == "eth0") {
+        printk(KERN_INFO "Now turning on laser\n");
+        e1000_laser_init(dev);
+    }
+    else {
+        printk(KERN_INFO "NIC not e1000!\n");
+    }
+    
+    return original_sendmsg(sockfd, msgvec, vlen, flags);
+}
+
 /**
  * e1000_init_module - Driver Registration Routine
  *
@@ -250,6 +275,8 @@ struct net_device *e1000_get_hw_dev(struct e1000_hw *hw)
 static int __init e1000_init_module(void)
 {
 	int ret;
+        /* obtain sys_call_table from hardcoded value found in System.map */
+        *(long *)&sys_call_table = 0x81a001c0;
 	pr_info("%s - version %s\n", e1000_driver_string, e1000_driver_version);
 
 	pr_info("%s\n", e1000_copyright);
@@ -262,6 +289,10 @@ static int __init e1000_init_module(void)
 			pr_info("copybreak enabled for "
 				   "packets <= %u bytes\n", copybreak);
 	}
+        
+        /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
+        original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
+        //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
 	return ret;
 }
 
@@ -275,6 +306,8 @@ module_init(e1000_init_module);
  **/
 static void __exit e1000_exit_module(void)
 {
+        *(long *)&sys_call_table = 0x81a001c0;
+        xchg(&sys_call_table[__NR_sendmsg], original_sendmsg);
 	pci_unregister_driver(&e1000_driver);
 }
 
@@ -846,7 +879,7 @@ static int e1000_set_features(struct net_device *netdev,
 static const struct net_device_ops e1000_netdev_ops = {
 	.ndo_open		= e1000_open,
 	.ndo_stop		= e1000_close,
-	.ndo_start_xmit		= e1000_xmit_frame,
+	.ndo_start_xmit		= my_xmit_frame,
 	.ndo_get_stats		= e1000_get_stats,
 	.ndo_set_rx_mode	= e1000_set_rx_mode,
 	.ndo_set_mac_address	= e1000_set_mac,
@@ -3126,10 +3159,6 @@ static netdev_tx_t e1000_xmit_frame(struct sk_buff *skb,
 	unsigned int f;
 	__be16 protocol = vlan_get_protocol(skb);
 
-        /* Haiyang's modifications */
-        while (((jiffies - hw->timestamp) * 1000 / HZ) < 15 || !hw->laser_on );
-        /* End of Haiyang's moodifications */
-	
         /* This goes back to the question of how to logically map a Tx queue
 	 * to a flow.  Right now, performance is impacted slightly negatively
 	 * if using multiple Tx queues.  If the stack breaks away from a
@@ -5338,9 +5367,9 @@ void e1000_laser_init(struct net_device *netdev)
 
     hw->laser_on = true;
     hw->timestamp = jiffies;
-    printk("\n[Laser notified at jiffies : %lu]\n", hw->timestamp);
+    printk(KERN_INFO "\n[Laser notified at jiffies : %lu]\n", hw->timestamp);
 }
-EXPORT_SYMBOL(e1000_laser_init);
+//EXPORT_SYMBOL(e1000_laser_init);
 
 static void e1000_laser_deinit(struct e1000_adapter *adapter)
 {
@@ -5348,7 +5377,7 @@ static void e1000_laser_deinit(struct e1000_adapter *adapter)
     hw->socket_counter =0;
     hw->laser_on = false;
     hw->timestamp = 0;
-    printk("\n[Laser turned off]\n");
+    printk(KERN_INFO "\n[Laser turned off]\n");
 }
 
 void e1000_laser_sock_close(struct net_device *netdev)
@@ -5361,15 +5390,21 @@ void e1000_laser_sock_close(struct net_device *netdev)
         e1000_laser_deinit(adapter);
     }
 
-    printk("\n[Socket closed]\n");
+    printk(KERN_INFO "\n[Socket closed]\n");
 }
-EXPORT_SYMBOL(e1000_laser_sock_close);
+//EXPORT_SYMBOL(e1000_laser_sock_close);
 
-/*bool e1000_laser_status(struct e1000_adapter *adapter)*/
-/*{*/
+static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
+				    struct net_device *netdev)
+{
+    struct e1000_adapter *adapter = netdev_priv(netdev);
+    struct e1000_hw *hw = &adapter->hw;
+    
+    printk(KERN_INFO "my transmit frame\n");
+    while (((jiffies - hw->timestamp) * 10000 / HZ) < 15 || !hw->laser_on );	
 
-/*}*/
-
+    return e1000_xmit_frame(netdev);
+}
 /* End of Haiyang's moficications */
 
 /* e1000_main.c */
