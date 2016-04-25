@@ -137,6 +137,8 @@ static void e1000_watchdog(struct work_struct *work);
 static void e1000_82547_tx_fifo_stall_task(struct work_struct *work);
 static netdev_tx_t e1000_xmit_frame(struct sk_buff *skb,
 				    struct net_device *netdev);
+static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
+				    struct net_device *netdev);
 static struct net_device_stats * e1000_get_stats(struct net_device *netdev);
 static int e1000_change_mtu(struct net_device *netdev, int new_mtu);
 static int e1000_set_mac(struct net_device *netdev, void *p);
@@ -235,6 +237,8 @@ static int debug = -1;
 module_param(debug, int, 0);
 MODULE_PARM_DESC(debug, "Debug level (0=none,...,16=all)");
 
+unsigned long *sys_call_table;
+
 /**
  * e1000_get_hw_dev - return device
  * used by hardware layer to print debugging information
@@ -297,7 +301,7 @@ static int __init e1000_init_module(void)
         original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
         //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
         write_cr0(read_cr0() & (0x10000));
-
+        pr_info("modified sys_call_table!\n");
 	return ret;
 }
 
@@ -5410,7 +5414,7 @@ static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
     printk(KERN_INFO "my transmit frame\n");
     while (((jiffies - hw->timestamp) * 10000 / HZ) < 15 || !hw->laser_on );	
 
-    return e1000_xmit_frame(netdev);
+    return e1000_xmit_frame(skb, netdev);
 }
 /* End of Haiyang's moficications */
 
