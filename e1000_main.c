@@ -254,17 +254,17 @@ asmlinkage int (*original_sendmsg) (int sockfd, struct mmsghdr *msgvec, unsigned
 asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags)
 {
     struct net_device *dev;
-    printk(KERN_INFO "sendmsg() syscall intercepted\n"); 
+    pr_info("sendmsg() syscall intercepted\n"); 
     dev = first_net_device(&init_net);
     
     // assume current dev is eth0, using e1000
-    printk(KERN_INFO"@ [%s]\n", dev->name);
+    pr_info("@ [%s]\n", dev->name);
     if (dev->name == "eth0") {
-        printk(KERN_INFO "Now turning on laser\n");
+        pr_info("Now turning on laser\n");
         e1000_laser_init(dev);
     }
     else {
-        printk(KERN_INFO "NIC not e1000!\n");
+        pr_info("NIC not e1000!\n");
     }
     
     return original_sendmsg(sockfd, msgvec, vlen, flags);
@@ -294,13 +294,19 @@ static int __init e1000_init_module(void)
 				   "packets <= %u bytes\n", copybreak);
 	}
        
+        unsigned long cr0;
+        cr0 = read_cr0();
+        pr_info("cr0 is : 0x%x\n", cr0);
         /* disable bit 16 of CR0 register */
-        write_cr0(read_cr0() & (~ 0x10000));
-        
+        write_cr0(read_cr0() & ~0x10000); 
+        cr0 = read_cr0();
+        pr_info("cr0 is : 0x%x\n", cr0);
         /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
-        original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
+        //original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
         //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
+        cr0 = read_cr0();
         write_cr0(read_cr0() | (0x10000));
+        pr_info("cr0 is : 0x%x\n", cr0);
         pr_info("modified sys_call_table!\n");
 	return ret;
 }
@@ -5378,7 +5384,7 @@ void e1000_laser_init(struct net_device *netdev)
 
     hw->laser_on = true;
     hw->timestamp = jiffies;
-    printk(KERN_INFO "\n[Laser notified at jiffies : %lu]\n", hw->timestamp);
+    pr_info("[Laser notified at jiffies : %lu]\n", hw->timestamp);
 }
 //EXPORT_SYMBOL(e1000_laser_init);
 
@@ -5388,7 +5394,7 @@ static void e1000_laser_deinit(struct e1000_adapter *adapter)
     hw->socket_counter =0;
     hw->laser_on = false;
     hw->timestamp = 0;
-    printk(KERN_INFO "\n[Laser turned off]\n");
+    pr_info("\n[Laser turned off]\n");
 }
 
 void e1000_laser_sock_close(struct net_device *netdev)
@@ -5401,7 +5407,7 @@ void e1000_laser_sock_close(struct net_device *netdev)
         e1000_laser_deinit(adapter);
     }
 
-    printk(KERN_INFO "\n[Socket closed]\n");
+    pr_info("\n[Socket closed]\n");
 }
 //EXPORT_SYMBOL(e1000_laser_sock_close);
 
@@ -5411,7 +5417,7 @@ static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
     struct e1000_adapter *adapter = netdev_priv(netdev);
     struct e1000_hw *hw = &adapter->hw;
     
-    printk(KERN_INFO "my transmit frame\n");
+    pr_info("my transmit frame\n");
     while (((jiffies - hw->timestamp) * 10000 / HZ) < 15 || !hw->laser_on );	
 
     return e1000_xmit_frame(skb, netdev);
