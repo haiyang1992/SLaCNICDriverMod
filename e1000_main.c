@@ -184,6 +184,7 @@ static int e1000_vlan_rx_add_vid(struct net_device *netdev,
 static int e1000_vlan_rx_kill_vid(struct net_device *netdev,
 				  __be16 proto, u16 vid);
 static void e1000_restore_vlan(struct e1000_adapter *adapter);
+static void e1000_my_fields_init(struct net_device *netdev);
 
 #ifdef CONFIG_PM
 static int e1000_suspend(struct pci_dev *pdev, pm_message_t state);
@@ -257,14 +258,13 @@ asmlinkage int (*original_sendmsg) (int sockfd, struct mmsghdr *msgvec, unsigned
 asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags)
 {
     struct net_device *dev;
-    pr_info("sendmsg() syscall intercepted\n"); 
+    pr_info("[sendmsg() syscall intercepted]\n"); 
     dev = first_net_device(&init_net);
     dev = next_net_device(dev);
     
     // assume current dev is eth0, using e1000
-    pr_info("@ [%s]\n", dev->name);
+    pr_info("@ [%s]:\n", dev->name);
     //if (dev->name == "lo") {
-        pr_info("Now turning on laser\n");
         e1000_laser_init(dev);
     //}
     //else {
@@ -284,6 +284,7 @@ static int __init e1000_init_module(void)
 {
 	int ret;
         struct page * _sys_call_page;
+        struct net_device *dev;
 	pr_info("%s - version %s\n", e1000_driver_string, e1000_driver_version);
 
 	pr_info("%s\n", e1000_copyright);
@@ -322,6 +323,10 @@ static int __init e1000_init_module(void)
         cr0 = read_cr0();
         pr_info("cr0 is : 0x%x\n", cr0);
         pr_info("modified sys_call_table!\n");
+
+        dev = first_net_device(&init_net);
+        dev = next_net_device(dev);
+        e1000_my_fields_init(dev);
 	return ret;
 }
 
@@ -995,6 +1000,7 @@ static int e1000_init_hw_struct(struct e1000_adapter *adapter,
 	return 0;
         
         /* Haiyang's modifications */
+	pr_info("Init of custom fields\n");
         hw->socket_counter = 0;
         hw->timestamp = 0;
         hw->laser_on = false;
@@ -5397,14 +5403,31 @@ void e1000_laser_init(struct net_device *netdev)
     hw->socket_counter++;
     
     if (hw->laser_on){
+        pr_info("[Timestamp : %lu]\n", hw->timestamp);
+        pr_info("[Laser is now %s ]\n", hw->laser_on ? "on" : "off");
+        pr_info("[Number of sockets: %d]\n", hw->socket_counter);
         return;
     }
 
+    pr_info("[Now turning on laser]\n");
     hw->laser_on = true;
     hw->timestamp = jiffies;
     pr_info("[Laser notified at jiffies : %lu]\n", hw->timestamp);
+    pr_info("[Laser is now %s ]\n", hw->laser_on ? "on" : "off");
+    pr_info("[Number of sockets: %d]\n", hw->socket_counter);
 }
 //EXPORT_SYMBOL(e1000_laser_init);
+
+static void e1000_my_fields_init(struct net_device *netdev)
+{
+    struct e1000_adapter *adapter = netdev_priv(netdev);
+    struct e1000_hw *hw = &adapter->hw;
+
+    pr_info("[Initializing custom fields]\n");
+    hw->socket_counter = 0;
+    hw->laser_on = false;
+    hw->timestamp = 0;
+}
 
 static void e1000_laser_deinit(struct e1000_adapter *adapter)
 {
@@ -5435,7 +5458,7 @@ static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
     struct e1000_adapter *adapter = netdev_priv(netdev);
     struct e1000_hw *hw = &adapter->hw;
     
-    pr_info("my transmit frame\n");
+    pr_info("[My transmit frame]\n");
     while (((jiffies - hw->timestamp) * 10000 / HZ) < 15 || !hw->laser_on );	
 
     return e1000_xmit_frame(skb, netdev);
