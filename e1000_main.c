@@ -259,6 +259,7 @@ asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vl
     struct net_device *dev;
     pr_info("sendmsg() syscall intercepted\n"); 
     dev = first_net_device(&init_net);
+    dev = next_net_device(dev);
     
     // assume current dev is eth0, using e1000
     pr_info("@ [%s]\n", dev->name);
