@@ -186,6 +186,7 @@ static int e1000_vlan_rx_kill_vid(struct net_device *netdev,
 static void e1000_restore_vlan(struct e1000_adapter *adapter);
 static void e1000_my_fields_init(struct net_device *netdev);
 void e1000_laser_init(struct net_device *netdev);
+void e1000_laser_sock_close(struct net_device *netdev);
 
 #ifdef CONFIG_PM
 static int e1000_suspend(struct pci_dev *pdev, pm_message_t state);
@@ -273,6 +274,27 @@ asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vl
     return original_sendmsg(sockfd, msgvec, vlen, flags);
 }
 
+asmlinkage long (*original_close) (unsigned int fd);
+asmlinkage long e1000_close(unsigned int fd)
+{ 
+    struct socket* sock;
+    struct net_device *dev;
+    int err;
+    printk(KERN_INFO "close() intercepted\nNow turning off laser\n");
+    sock = sockfd_lookup(fd, &err);
+    if (sock == NULL)
+    {
+        printk(KERN_INFO"not a socket close\n");
+    }
+    else
+    {
+        dev = first_net_device(&init_net);
+        dev = next_net_device(dev);
+        e1000_laser_sock_close(dev);
+    }
+    return original_close(fd);
+};
+
 /**
  * e1000_init_module - Driver Registration Routine
  *
@@ -316,6 +338,8 @@ static int __init e1000_init_module(void)
         //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
         original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
         sys_call_table[__NR_sendmsg] = e1000_sendmsg;
+        original_close = (void *)sys_call_table[__NR_close];
+        sys_call_table[__NR_close] = e1000_close;
         
         write_cr0(read_cr0() | (0x10000));
         
