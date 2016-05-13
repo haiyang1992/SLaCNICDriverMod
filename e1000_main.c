@@ -280,11 +280,11 @@ asmlinkage long e1000_sock_close(unsigned int fd)
     struct socket* sock;
     struct net_device *dev;
     int err;
-    printk(KERN_INFO "close() intercepted\nNow turning off laser\n");
+    //printk(KERN_INFO "close() intercepted\nNow turning off laser\n");
     sock = sockfd_lookup(fd, &err);
     if (sock == NULL)
     {
-        printk(KERN_INFO"not a socket close\n");
+        pr_info(KERN_INFO"not a socket close\n");
     }
     else
     {
