@@ -282,11 +282,7 @@ asmlinkage long e1000_sock_close(unsigned int fd)
     int err;
     //printk(KERN_INFO "close() intercepted\nNow turning off laser\n");
     sock = sockfd_lookup(fd, &err);
-    if (sock == NULL)
-    {
-        pr_info(KERN_INFO"not a socket close\n");
-    }
-    else
+    if (sock != NULL)
     {
         dev = first_net_device(&init_net);
         dev = next_net_device(dev);
@@ -320,36 +316,35 @@ static int __init e1000_init_module(void)
 	}
        
 
-        unsigned long cr0;
-        cr0 = read_cr0();
-        pr_info("cr0 is : 0x%x\n", cr0);
-        
-        /* disable bit 16 of CR0 register */
-        write_cr0(read_cr0() & ~0x10000); 
-        
-        cr0 = read_cr0();
-        pr_info("cr0 is : 0x%x\n", cr0);
-        
-        //_sys_call_page = virt_to_page(&sys_call_table);
-        //pages_rw(_sys_call_page, 1);
-        //pr_info("sys_call_table is now read_write\n");
-        /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
-        //original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
-        //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
-        original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
-        sys_call_table[__NR_sendmsg] = e1000_sendmsg;
-        original_close = (void *)sys_call_table[__NR_close];
-        sys_call_table[__NR_close] = e1000_sock_close;
-        
-        write_cr0(read_cr0() | (0x10000));
-        
-        cr0 = read_cr0();
-        pr_info("cr0 is : 0x%x\n", cr0);
-        pr_info("modified sys_call_table!\n");
-
-        dev = first_net_device(&init_net);
-        dev = next_net_device(dev);
-        e1000_my_fields_init(dev);
+    unsigned long cr0;
+    cr0 = read_cr0();
+    pr_info("cr0 is : 0x%x\n", cr0);
+    
+    /* disable bit 16 of CR0 register */
+    write_cr0(read_cr0() & ~0x10000); 
+    
+    cr0 = read_cr0();
+    pr_info("cr0 is : 0x%x\n", cr0);
+    
+    //_sys_call_page = virt_to_page(&sys_call_table);
+    //pages_rw(_sys_call_page, 1);
+    //pr_info("sys_call_table is now read_write\n");
+    /* store original location of sendmsg(). Alter sys_call_table to point to our functions*/
+    //original_sendmsg = (void *)xchg(&sys_call_table[__NR_sendmsg], e1000_sendmsg);
+    //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
+    original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
+    sys_call_table[__NR_sendmsg] = e1000_sendmsg;
+    original_close = (void *)sys_call_table[__NR_close];
+    sys_call_table[__NR_close] = e1000_sock_close;
+    
+    write_cr0(read_cr0() | (0x10000));
+    
+    cr0 = read_cr0();
+    pr_info("cr0 is : 0x%x\n", cr0);
+    pr_info("modified sys_call_table!\n");
+    dev = first_net_device(&init_net);
+    dev = next_net_device(dev);
+    e1000_my_fields_init(dev);
 	return ret;
 }
 
@@ -5428,7 +5423,7 @@ void e1000_laser_init(struct net_device *netdev)
     if (hw->laser_on){
         //pr_info("[Timestamp : %lu]\n", hw->timestamp);
         //pr_info("[Laser is now %s ]\n", hw->laser_on ? "on" : "off");
-        //pr_info("[Number of sockets: %d]\n", hw->socket_counter);
+        pr_info("[Number of sockets: %d]\n", hw->socket_counter);
         return;
     }
 
@@ -5466,7 +5461,8 @@ void e1000_laser_sock_close(struct net_device *netdev)
     struct e1000_adapter *adapter = netdev_priv(netdev);
     struct e1000_hw *hw = &adapter->hw;
     hw->socket_counter--;
-    
+	
+    pr_info("[Number of sockets: %d]\n", hw->socket_counter);
     if (hw->socket_counter == 0){
         e1000_laser_deinit(adapter);
     }
