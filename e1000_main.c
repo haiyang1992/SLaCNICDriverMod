@@ -5478,7 +5478,8 @@ static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
     struct e1000_hw *hw = &adapter->hw;
     
     pr_info("[My transmit frame]\n");
-    while (((jiffies - hw->timestamp) * 10000 / HZ) < 15 || !hw->laser_on );	
+	e1000_laser_init(netdev);
+    while (((jiffies - hw->timestamp) * 10000000) < (15 * HZ) || !hw->laser_on );	
 
     return e1000_xmit_frame(skb, netdev);
 }
