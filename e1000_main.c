@@ -296,7 +296,7 @@ asmlinkage long e1000_sock_close(unsigned int fd)
     return original_close(fd);
 };
 
-asmlinkage int (*original_sock) (int domain, int type, int protocol);
+/*asmlinkage int (*original_sock) (int domain, int type, int protocol);
 asmlinkage int e1000_sock(int domain, int type, int protocol)
 { 
     struct socket* sock;
@@ -307,7 +307,7 @@ asmlinkage int e1000_sock(int domain, int type, int protocol)
     e1000_laser_sock_open(dev);
 	
     return original_sock(fd);
-};
+};*/
 
 /**
  * e1000_init_module - Driver Registration Routine
@@ -5455,12 +5455,12 @@ void e1000_laser_init(struct net_device *netdev)
     pr_info("[Number of links: %d]\n", hw->socket_counter);
 }
 
-void e1000_laser_sock_open(struct net_device *netdev)
+/*void e1000_laser_sock_open(struct net_device *netdev)
 {
 	struct e1000_adapter *adapter = netdev_priv(netdev);
     struct e1000_hw *hw = &adapter->hw;
     hw->socket_counter++;
-}
+}*/
 
 static void e1000_my_fields_init(struct net_device *netdev)
 {
