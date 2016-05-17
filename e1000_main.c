@@ -257,6 +257,7 @@ asmlinkage int (*original_sendmsg) (int sockfd, struct mmsghdr *msgvec, unsigned
 asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags)
 {
     struct net_device *dev;
+	int ret;
     //pr_info("[sendmsg() syscall intercepted]\n"); 
     dev = first_net_device(&init_net);
     dev = next_net_device(dev);
@@ -271,7 +272,11 @@ asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vl
       //  pr_info("NIC not e1000!\n");
    // }
     
-    return original_sendmsg(sockfd, msgvec, vlen, flags);
+    ret = original_sendmsg(sockfd, msgvec, vlen, flags);
+	
+	e1000_laser_sock_close(dev);
+	
+	return ret;
 }
 
 asmlinkage long (*original_close) (unsigned int fd);
@@ -289,6 +294,19 @@ asmlinkage long e1000_sock_close(unsigned int fd)
         e1000_laser_sock_close(dev);
     }
     return original_close(fd);
+};
+
+asmlinkage int (*original_sock) (int domain, int type, int protocol);
+asmlinkage int e1000_sock(int domain, int type, int protocol)
+{ 
+    struct socket* sock;
+    struct net_device *dev;
+    
+	dev = first_net_device(&init_net);
+    dev = next_net_device(dev);
+    e1000_laser_sock_open(dev);
+	
+    return original_sock(fd);
 };
 
 /**
@@ -334,9 +352,11 @@ static int __init e1000_init_module(void)
     //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
     original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
     sys_call_table[__NR_sendmsg] = e1000_sendmsg;
-    original_close = (void *)sys_call_table[__NR_close];
-    sys_call_table[__NR_close] = e1000_sock_close;
-    
+    //original_close = (void *)sys_call_table[__NR_close];
+    //sys_call_table[__NR_close] = e1000_sock_close;
+    //original_sock = (void *)sys_call_table[__NR_socket];
+    //sys_call_table[__NR_socket] = e1000_sock;
+	
     write_cr0(read_cr0() | (0x10000));
     
     cr0 = read_cr0();
@@ -5423,7 +5443,7 @@ void e1000_laser_init(struct net_device *netdev)
     if (hw->laser_on){
         //pr_info("[Timestamp : %lu]\n", hw->timestamp);
         //pr_info("[Laser is now %s ]\n", hw->laser_on ? "on" : "off");
-        pr_info("[Number of sockets: %d]\n", hw->socket_counter);
+        pr_info("[Number of links: %d]\n", hw->socket_counter);
         return;
     }
 
@@ -5432,9 +5452,15 @@ void e1000_laser_init(struct net_device *netdev)
     hw->timestamp = jiffies;
     pr_info("[Laser notified at jiffies : %lu]\n", hw->timestamp);
     pr_info("[Laser is now %s ]\n", hw->laser_on ? "on" : "off");
-    pr_info("[Number of sockets: %d]\n", hw->socket_counter);
+    pr_info("[Number of links: %d]\n", hw->socket_counter);
 }
-//EXPORT_SYMBOL(e1000_laser_init);
+
+void e1000_laser_sock_open(struct net_device *netdev)
+{
+	struct e1000_adapter *adapter = netdev_priv(netdev);
+    struct e1000_hw *hw = &adapter->hw;
+    hw->socket_counter++;
+}
 
 static void e1000_my_fields_init(struct net_device *netdev)
 {
@@ -5453,7 +5479,7 @@ static void e1000_laser_deinit(struct e1000_adapter *adapter)
     hw->socket_counter =0;
     hw->laser_on = false;
     hw->timestamp = 0;
-    pr_info("\n[Laser turned off]\n");
+    pr_info("[Laser turned off]\n");
 }
 
 void e1000_laser_sock_close(struct net_device *netdev)
@@ -5461,15 +5487,14 @@ void e1000_laser_sock_close(struct net_device *netdev)
     struct e1000_adapter *adapter = netdev_priv(netdev);
     struct e1000_hw *hw = &adapter->hw;
     hw->socket_counter--;
-	
-    pr_info("[Number of sockets: %d]\n", hw->socket_counter);
+
+    pr_info("[Number of links: %d]\n", hw->socket_counter);
     if (hw->socket_counter == 0){
         e1000_laser_deinit(adapter);
     }
 
-    pr_info("\n[Socket closed]\n");
+    pr_info("[Link ended]\n");
 }
-//EXPORT_SYMBOL(e1000_laser_sock_close);
 
 static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
 				    struct net_device *netdev)
@@ -5478,7 +5503,7 @@ static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
     struct e1000_hw *hw = &adapter->hw;
     
     pr_info("[My transmit frame]\n");
-	e1000_laser_init(netdev);
+	//e1000_laser_init(netdev);
     while (((jiffies - hw->timestamp) * 10000000) < (15 * HZ) || !hw->laser_on );	
 
     return e1000_xmit_frame(skb, netdev);
