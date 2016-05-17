@@ -187,6 +187,7 @@ static void e1000_restore_vlan(struct e1000_adapter *adapter);
 static void e1000_my_fields_init(struct net_device *netdev);
 void e1000_laser_init(struct net_device *netdev);
 void e1000_laser_sock_close(struct net_device *netdev);
+void e1000_laser_sock_open(struct net_device *netdev);
 
 #ifdef CONFIG_PM
 static int e1000_suspend(struct pci_dev *pdev, pm_message_t state);
@@ -257,7 +258,7 @@ asmlinkage int (*original_sendmsg) (int sockfd, struct mmsghdr *msgvec, unsigned
 asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags)
 {
     struct net_device *dev;
-	int ret;
+    int ret;
     //pr_info("[sendmsg() syscall intercepted]\n"); 
     dev = first_net_device(&init_net);
     dev = next_net_device(dev);
@@ -272,11 +273,7 @@ asmlinkage int e1000_sendmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vl
       //  pr_info("NIC not e1000!\n");
    // }
     
-    ret = original_sendmsg(sockfd, msgvec, vlen, flags);
-	
-	e1000_laser_sock_close(dev);
-	
-	return ret;
+    return original_sendmsg(sockfd, msgvec, vlen, flags);
 }
 
 asmlinkage long (*original_close) (unsigned int fd);
@@ -296,18 +293,17 @@ asmlinkage long e1000_sock_close(unsigned int fd)
     return original_close(fd);
 };
 
-/*asmlinkage int (*original_sock) (int domain, int type, int protocol);
+asmlinkage int (*original_sock) (int domain, int type, int protocol);
 asmlinkage int e1000_sock(int domain, int type, int protocol)
 { 
-    struct socket* sock;
     struct net_device *dev;
     
-	dev = first_net_device(&init_net);
+    dev = first_net_device(&init_net);
     dev = next_net_device(dev);
     e1000_laser_sock_open(dev);
 	
-    return original_sock(fd);
-};*/
+    return original_sock(domain, type, protocol);
+};
 
 /**
  * e1000_init_module - Driver Registration Routine
@@ -352,10 +348,12 @@ static int __init e1000_init_module(void)
     //original_close = (void *)xchg(&sys_call_table[__NR_close], e1000_close);
     original_sendmsg = (void *)sys_call_table[__NR_sendmsg];
     sys_call_table[__NR_sendmsg] = e1000_sendmsg;
-    //original_close = (void *)sys_call_table[__NR_close];
-    //sys_call_table[__NR_close] = e1000_sock_close;
-    //original_sock = (void *)sys_call_table[__NR_socket];
-    //sys_call_table[__NR_socket] = e1000_sock;
+    
+    original_close = (void *)sys_call_table[__NR_close];
+    sys_call_table[__NR_close] = e1000_sock_close;
+    
+    original_sock = (void *)sys_call_table[__NR_socket];
+    sys_call_table[__NR_socket] = e1000_sock;
 	
     write_cr0(read_cr0() | (0x10000));
     
@@ -365,7 +363,7 @@ static int __init e1000_init_module(void)
     dev = first_net_device(&init_net);
     dev = next_net_device(dev);
     e1000_my_fields_init(dev);
-	return ret;
+    return ret;
 }
 
 module_init(e1000_init_module);
@@ -3238,6 +3236,8 @@ static netdev_tx_t e1000_xmit_frame(struct sk_buff *skb,
 	unsigned int f;
 	__be16 protocol = vlan_get_protocol(skb);
 
+        pr_info("[original transmit frame]");
+
         /* This goes back to the question of how to logically map a Tx queue
 	 * to a flow.  Right now, performance is impacted slightly negatively
 	 * if using multiple Tx queues.  If the stack breaks away from a
@@ -5438,12 +5438,12 @@ void e1000_laser_init(struct net_device *netdev)
 {
     struct e1000_adapter *adapter = netdev_priv(netdev);
     struct e1000_hw *hw = &adapter->hw;
-    hw->socket_counter++;
+    //hw->socket_counter++;
     
     if (hw->laser_on){
         //pr_info("[Timestamp : %lu]\n", hw->timestamp);
         //pr_info("[Laser is now %s ]\n", hw->laser_on ? "on" : "off");
-        pr_info("[Number of links: %d]\n", hw->socket_counter);
+        pr_info("[Number of sockets: %d]\n", hw->socket_counter);
         return;
     }
 
@@ -5452,15 +5452,16 @@ void e1000_laser_init(struct net_device *netdev)
     hw->timestamp = jiffies;
     pr_info("[Laser notified at jiffies : %lu]\n", hw->timestamp);
     pr_info("[Laser is now %s ]\n", hw->laser_on ? "on" : "off");
-    pr_info("[Number of links: %d]\n", hw->socket_counter);
+    pr_info("[Number of sockets: %d]\n", hw->socket_counter);
 }
 
-/*void e1000_laser_sock_open(struct net_device *netdev)
+void e1000_laser_sock_open(struct net_device *netdev)
 {
-	struct e1000_adapter *adapter = netdev_priv(netdev);
+    struct e1000_adapter *adapter = netdev_priv(netdev);
     struct e1000_hw *hw = &adapter->hw;
     hw->socket_counter++;
-}*/
+    pr_info("[Number of sockets: %d]\n", hw->socket_counter);
+}
 
 static void e1000_my_fields_init(struct net_device *netdev)
 {
@@ -5488,12 +5489,12 @@ void e1000_laser_sock_close(struct net_device *netdev)
     struct e1000_hw *hw = &adapter->hw;
     hw->socket_counter--;
 
-    pr_info("[Number of links: %d]\n", hw->socket_counter);
+    pr_info("[Number of sockets: %d]\n", hw->socket_counter);
     if (hw->socket_counter == 0){
         e1000_laser_deinit(adapter);
     }
 
-    pr_info("[Link ended]\n");
+    pr_info("[Socket closed]\n");
 }
 
 static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
@@ -5503,7 +5504,7 @@ static netdev_tx_t my_xmit_frame(struct sk_buff *skb,
     struct e1000_hw *hw = &adapter->hw;
     
     pr_info("[My transmit frame]\n");
-	//e1000_laser_init(netdev);
+    e1000_laser_init(netdev);
     while (((jiffies - hw->timestamp) * 10000000) < (15 * HZ) || !hw->laser_on );	
 
     return e1000_xmit_frame(skb, netdev);
